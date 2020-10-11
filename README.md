@@ -1,2 +1,2 @@
-# parallel-programming
-Parallel programming
+# Shared memory
+Shared memory
