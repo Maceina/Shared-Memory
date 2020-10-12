@@ -10,25 +10,25 @@ import (
 	"time"
 )
 
-const DataCount = 30             // How much moto in json file
-const RoutineCount = 10          // How much worker routines to start
-const BufferSize = DataCount / 2 // Size of DataMonitor internal buffer
-const FilterCriteria = 26        // Select cars whose aging value is less
+const DataNumber = 30             // How much moto in json file
+const WorkerCount = 10            // How much worker routines to start
+const BufferSize = DataNumber / 2 // Size of DataMonitor internal buffer
+const Criteria = 26               // Select moto whose aging value is less
 
 type (
-	Car struct {
-		Make    string  `json:"make"`
-		Year    int     `json:"year"`
-		Mileage float64 `json:"mileage"`
+	Moto struct {
+		Manufacturer string  `json:"manufacturer"`
+		Date         int     `json:"date"`
+		Distance     float64 `json:"distance"`
 	}
 
-	CarWithAge struct {
-		Car Car
-		Age int
+	MotoWithAge struct {
+		Moto Moto
+		Age  int
 	}
 
 	DataMonitor struct {
-		Cars                  [BufferSize]Car
+		Motos                 [BufferSize]Moto
 		In, Out               int
 		Work, Space           *sync.Cond
 		WorkCount, SpaceCount int
@@ -36,25 +36,23 @@ type (
 	}
 
 	SortedResultMonitor struct {
-		Cars  [DataCount]CarWithAge
+		Motos [DataNumber]MotoWithAge
 		Count int
 		Lock  sync.Mutex
 	}
 )
 
-
-
 func main() {
 	dataMonitor := NewDataMonitor()
 	resultMonitor := NewSortedResultMonitor()
 	var wg sync.WaitGroup
-	wg.Add(RoutineCount)
+	wg.Add(WorkerCount)
 
-	cars := readData("IFK-8_OdinasT_L1_dat_1.json")
-	startWorkers(dataMonitor, resultMonitor, RoutineCount, &wg)
+	cars := readData("IFF-8-8_MaceinaA_L1_dat_1.json")
+	startWorkers(dataMonitor, resultMonitor, WorkerCount, &wg)
 	fillDataMonitor(&cars, dataMonitor)
 	wg.Wait()
-	writeData("IFK-8_OdinasT_L1_rez.txt", &cars, resultMonitor)
+	writeData("IFF-8-8_MaceinaA_L1_rez.txt", &cars, resultMonitor)
 }
 
 func NewSortedResultMonitor() *SortedResultMonitor { return &SortedResultMonitor{} }
@@ -65,12 +63,12 @@ func NewDataMonitor() *DataMonitor {
 	return &monitor
 }
 
-func (m *DataMonitor) addItem(item Car) {
+func (m *DataMonitor) addItem(item Moto) {
 	m.InputLock.Lock()
-	for m.SpaceCount < 1{
+	for m.SpaceCount < 1 {
 		m.Space.Wait()
 	}
-	m.Cars[m.In] = item
+	m.Motos[m.In] = item
 	m.In = (m.In + 1) % BufferSize
 	m.SpaceCount--
 	m.InputLock.Unlock()
@@ -82,17 +80,17 @@ func (m *DataMonitor) addItem(item Car) {
 	m.Work.Signal()
 }
 
-func (m *DataMonitor) removeItem() Car {
+func (m *DataMonitor) removeItem() Moto {
 	m.OutputLock.Lock()
 	for m.WorkCount < 1 {
 		m.Work.Wait()
 	}
 
-	car := m.Cars[m.Out]
-	if car.Make == "<EndOfInput>" { // Poison pill pattern
+	moto := m.Motos[m.Out]
+	if moto.Manufacturer == "<EndOfInput>" {
 		m.OutputLock.Unlock()
 		m.Work.Signal()
-		return car
+		return moto
 	}
 
 	m.Out = (m.Out + 1) % BufferSize
@@ -103,20 +101,20 @@ func (m *DataMonitor) removeItem() Car {
 	m.SpaceCount++
 	m.InputLock.Unlock()
 	m.Space.Signal()
-	return car
+	return moto
 }
 
-// Computes custom car aging value
-func (c *Car) Age() int {
-	return time.Now().Year() - c.Year + int(c.Mileage/20_000)
+// Computes custom moto aging value
+func (m *Moto) Age() int {
+	return time.Now().Year() - m.Date + int(m.Distance/1_000)
 }
 
-func fillDataMonitor(cars *[DataCount]Car, dataMonitor *DataMonitor) {
-	for _, car := range cars {
-		dataMonitor.addItem(car) // Will block if no space
+func fillDataMonitor(motos *[DataNumber]Moto, dataMonitor *DataMonitor) {
+	for _, moto := range motos {
+		dataMonitor.addItem(moto) // Will block if no space
 	}
 	// Inform consumers that there will be no more data coming
-	dataMonitor.addItem(Car{Make: "<EndOfInput>"})
+	dataMonitor.addItem(Moto{Manufacturer: "<EndOfInput>"})
 }
 
 func startWorkers(dataMonitor *DataMonitor, resultMonitor *SortedResultMonitor, workerCount int, wg *sync.WaitGroup) {
@@ -128,61 +126,61 @@ func startWorkers(dataMonitor *DataMonitor, resultMonitor *SortedResultMonitor, 
 func worker(in *DataMonitor, out *SortedResultMonitor, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
-		car := in.removeItem() // Will block if no data
-		if car.Make == "<EndOfInput>" {
+		moto := in.removeItem() // Will block if no data
+		if moto.Manufacturer == "<EndOfInput>" {
 			break
 		}
 
-		carAge := car.Age()
-		if carAge < FilterCriteria {
-			car := CarWithAge{car, carAge}
-			out.addItemSorted(car)
+		motoAge := moto.Age()
+		if motoAge < Criteria {
+			moto := MotoWithAge{moto, motoAge}
+			out.addItemSorted(moto)
 		}
 	}
 }
 
 // Sort by car age ascending, and then by year descending
-func (m *SortedResultMonitor) addItemSorted(car CarWithAge) {
+func (m *SortedResultMonitor) addItemSorted(moto MotoWithAge) {
 	m.Lock.Lock()
 	i := m.Count - 1
-	for i >= 0 && (m.Cars[i].Age > car.Age || (m.Cars[i].Age == car.Age && m.Cars[i].Car.Year < car.Car.Year)) {
-		m.Cars[i+1] = m.Cars[i]
+	for i >= 0 && (m.Motos[i].Age > moto.Age || (m.Motos[i].Age == moto.Age && m.Motos[i].Moto.Date < moto.Moto.Date)) {
+		m.Motos[i+1] = m.Motos[i]
 		i--
 	}
-	m.Cars[i+1] = car
+	m.Motos[i+1] = moto
 	m.Count++
 	m.Lock.Unlock()
 }
 
-func readData(path string) [DataCount]Car {
+func readData(path string) [DataNumber]Moto {
 	data, _ := ioutil.ReadFile(path)
-	var cars [DataCount]Car
-	_ = json.Unmarshal(data, &cars)
-	return cars
+	var motos [DataNumber]Moto
+	_ = json.Unmarshal(data, &motos)
+	return motos
 }
 
-func writeData(path string, inputData *[DataCount]Car, results *SortedResultMonitor) {
+func writeData(path string, inputData *[DataNumber]Moto, results *SortedResultMonitor) {
 	file, _ := os.Create(path)
 	defer file.Close()
 
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 42)+"\n")
 	_, _ = fmt.Fprintf(file, "┃%25s%16s\n", "INPUT DATA", "┃")
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 42)+"\n")
-	_, _ = fmt.Fprintf(file, "┃%-13s┃%10s┃%15s┃\n", "Make", "Year", "Mileage")
+	_, _ = fmt.Fprintf(file, "┃%-13s┃%10s┃%15s┃\n", "Manufacturer", "Date", "Distance")
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 42)+"\n")
-	for _, car := range inputData {
-		_, _ = fmt.Fprintf(file, "┃%-13s┃%10d┃%15.2f┃\n", car.Make, car.Year, car.Mileage)
+	for _, moto := range inputData {
+		_, _ = fmt.Fprintf(file, "┃%-13s┃%10d┃%15.2f┃\n", moto.Manufacturer, moto.Date, moto.Distance)
 	}
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 42)+"\n\n")
 
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
 	_, _ = fmt.Fprintf(file, "┃%29s%18s\n", "OUTPUT DATA", "┃")
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
-	_, _ = fmt.Fprintf(file, "┃%-13s┃%10s┃%15s┃%5s┃\n", "Make", "Year", "Mileage", "Age")
+	_, _ = fmt.Fprintf(file, "┃%-13s┃%10s┃%15s┃%5s┃\n", "Manufacturer", "Date", "Distance", "Age")
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
 	for i := 0; i < results.Count; i++ {
-		data := results.Cars[i]
-		_, _ = fmt.Fprintf(file, "┃%-13s┃%10d┃%15.2f┃%5d┃\n", data.Car.Make, data.Car.Year, data.Car.Mileage, data.Age)
+		data := results.Motos[i]
+		_, _ = fmt.Fprintf(file, "┃%-13s┃%10d┃%15.2f┃%5d┃\n", data.Moto.Manufacturer, data.Moto.Date, data.Moto.Distance, data.Age)
 	}
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
 }
