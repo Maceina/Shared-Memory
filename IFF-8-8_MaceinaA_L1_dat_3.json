@@ -1,3 +1,32 @@
-{
-    "name":"yaha"
-    }
+[
+    {"manufacturer":"Aprilla", "date":1992, "distance":59864.3},
+    {"manufacturer":"ATV", "date":1992, "distance":58970.54},
+    {"manufacturer":"BMW", "date":1996, "distance":62860.74},
+    {"manufacturer":"Can-Am", "date":1991, "distance":52412.54},
+    {"manufacturer":"Derbi", "date":1991, "distance":56842.67},
+    {"manufacturer":"Suzuki", "date":1992, "distance":61477.17},
+    {"manufacturer":"Ducati", "date":1992, "distance":77501.88},
+    {"manufacturer":"Harley-Davidson", "date":1991, "distance":59485.95},
+    {"manufacturer":"Honda", "date":1992, "distance":83829.12},
+    {"manufacturer":"Kawasaki", "date":1991, "distance":68168.26},
+    {"manufacturer":"Keeway", "date":1991, "distance":67210.06},
+    {"manufacturer":"KTM", "date":1991, "distance":75537.23},
+    {"manufacturer":"Kymco", "date":1991, "distance":61444.54},
+    {"manufacturer":"Piaggio", "date":1992, "distance":82132.8},
+    {"manufacturer":"Suzuki", "date":1990, "distance":54251.39},
+    {"manufacturer":"Yamaha", "date":1990, "distance":58151.32},
+    {"manufacturer":"Suzuki", "date":1991, "distance":69980.93},
+    {"manufacturer":"Yamaha", "date":1990, "distance":54543.38},
+    {"manufacturer":"BMW", "date":1991, "distance":60655},
+    {"manufacturer":"Aprilla", "date":1990, "distance":56178.46},
+    {"manufacturer":"Ducati", "date":1993, "distance":130621.02},
+    {"manufacturer":"Suzuki", "date":1999, "distance":57199.87},
+    {"manufacturer":"Honda", "date":1990, "distance":77796.81},
+    {"manufacturer":"BMW", "date":1992, "distance":119345.24},
+    {"manufacturer":"KTM", "date":1991, "distance":85730.97},
+    {"manufacturer":"Harley-Davidson", "date":1992, "distance":108974.29},
+    {"manufacturer":"Ducati", "date":1992, "distance":107442.68},
+    {"manufacturer":"Ducati", "date":1992, "distance":111549.69},
+    {"manufacturer":"BMW", "date":1992, "distance":110298.62},
+    {"manufacturer":"Yamaha", "date":1993, "distance":128270.23}
+  ]
