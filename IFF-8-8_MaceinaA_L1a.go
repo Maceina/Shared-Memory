@@ -13,7 +13,7 @@ import (
 const DataNumber = 30             // How much moto in json file
 const WorkerCount = 10            // How much worker routines to start
 const BufferSize = DataNumber / 2 // Size of DataMonitor internal buffer
-const Criteria = 26               // Select moto whose aging value is less
+const Criteria = 26               // Select moto whose purchase value is less
 
 type (
 	Moto struct {
@@ -22,9 +22,9 @@ type (
 		Distance     float64 `json:"distance"`
 	}
 
-	MotoWithAge struct {
+	MotoRank struct {
 		Moto Moto
-		Age  int
+		Rank int
 	}
 
 	DataMonitor struct {
@@ -36,7 +36,7 @@ type (
 	}
 
 	SortedResultMonitor struct {
-		Motos [DataNumber]MotoWithAge
+		Motos [DataNumber]MotoRank
 		Count int
 		Lock  sync.Mutex
 	}
@@ -48,11 +48,11 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(WorkerCount)
 
-	cars := readData("IFF-8-8_MaceinaA_L1_dat_1.json")
+	motos := readData("IFF-8-8_MaceinaA_L1_dat_1.json")
 	startWorkers(dataMonitor, resultMonitor, WorkerCount, &wg)
-	fillDataMonitor(&cars, dataMonitor)
+	fillDataMonitor(&motos, dataMonitor)
 	wg.Wait()
-	writeData("IFF-8-8_MaceinaA_L1_rez.txt", &cars, resultMonitor)
+	writeData("IFF-8-8_MaceinaA_L1_rez.txt", &motos, resultMonitor)
 }
 
 func NewSortedResultMonitor() *SortedResultMonitor { return &SortedResultMonitor{} }
@@ -73,7 +73,7 @@ func (m *DataMonitor) addItem(item Moto) {
 	m.SpaceCount--
 	m.InputLock.Unlock()
 
-	m.OutputLock.Lock() // could be 1 line atomic
+	m.OutputLock.Lock()
 	m.WorkCount++
 	m.OutputLock.Unlock()
 
@@ -104,16 +104,15 @@ func (m *DataMonitor) removeItem() Moto {
 	return moto
 }
 
-// Computes custom moto aging value
-func (m *Moto) Age() int {
+// Computes custom moto purchase rank
+func (m *Moto) BestMotoRank() int {
 	return time.Now().Year() - m.Date + int(m.Distance/1_000)
 }
 
 func fillDataMonitor(motos *[DataNumber]Moto, dataMonitor *DataMonitor) {
 	for _, moto := range motos {
-		dataMonitor.addItem(moto) // Will block if no space
+		dataMonitor.addItem(moto)
 	}
-	// Inform consumers that there will be no more data coming
 	dataMonitor.addItem(Moto{Manufacturer: "<EndOfInput>"})
 }
 
@@ -126,24 +125,24 @@ func startWorkers(dataMonitor *DataMonitor, resultMonitor *SortedResultMonitor, 
 func worker(in *DataMonitor, out *SortedResultMonitor, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
-		moto := in.removeItem() // Will block if no data
+		moto := in.removeItem()
 		if moto.Manufacturer == "<EndOfInput>" {
 			break
 		}
 
-		motoAge := moto.Age()
-		if motoAge < Criteria {
-			moto := MotoWithAge{moto, motoAge}
+		motoRank := moto.BestMotoRank()
+		if motoRank < Criteria {
+			moto := MotoRank{moto, motoRank}
 			out.addItemSorted(moto)
 		}
 	}
 }
 
-// Sort by car age ascending, and then by year descending
-func (m *SortedResultMonitor) addItemSorted(moto MotoWithAge) {
+// Sort by moto age ascending, and then by year descending
+func (m *SortedResultMonitor) addItemSorted(moto MotoRank) {
 	m.Lock.Lock()
 	i := m.Count - 1
-	for i >= 0 && (m.Motos[i].Age > moto.Age || (m.Motos[i].Age == moto.Age && m.Motos[i].Moto.Date < moto.Moto.Date)) {
+	for i >= 0 && (m.Motos[i].Rank > moto.Rank || (m.Motos[i].Rank == moto.Rank && m.Motos[i].Moto.Date < moto.Moto.Date)) {
 		m.Motos[i+1] = m.Motos[i]
 		i--
 	}
@@ -176,11 +175,11 @@ func writeData(path string, inputData *[DataNumber]Moto, results *SortedResultMo
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
 	_, _ = fmt.Fprintf(file, "┃%29s%18s\n", "OUTPUT DATA", "┃")
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
-	_, _ = fmt.Fprintf(file, "┃%-13s┃%10s┃%15s┃%5s┃\n", "Manufacturer", "Date", "Distance", "Age")
+	_, _ = fmt.Fprintf(file, "┃%-13s┃%10s┃%15s┃%5s┃\n", "Manufacturer", "Date", "Distance", "Rank")
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
 	for i := 0; i < results.Count; i++ {
 		data := results.Motos[i]
-		_, _ = fmt.Fprintf(file, "┃%-13s┃%10d┃%15.2f┃%5d┃\n", data.Moto.Manufacturer, data.Moto.Date, data.Moto.Distance, data.Age)
+		_, _ = fmt.Fprintf(file, "┃%-13s┃%10d┃%15.2f┃%5d┃\n", data.Moto.Manufacturer, data.Moto.Date, data.Moto.Distance, data.Rank)
 	}
 	_, _ = fmt.Fprint(file, strings.Repeat("━", 48)+"\n")
 }
